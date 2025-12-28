@@ -1,0 +1,94 @@
+.tasks-page {
+  padding: clamp(8px, 1.5vw, 16px);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: clamp(16px, 2vw, 24px);
+    flex-shrink: 0;
+  }
+
+  &__title {
+    font-weight: 600;
+  }
+
+  &__search {
+    margin-bottom: clamp(16px, 2vw, 24px);
+    flex-shrink: 0;
+  }
+
+  &__content {
+    flex: 1;
+    overflow: auto;
+    min-height: 0;
+    margin-top: clamp(20px, 3vw, 32px);
+  }
+
+  &__error {
+    margin-bottom: 16px;
+  }
+
+  &__empty {
+    text-align: center;
+    padding: 64px 0;
+  }
+
+  &__grid {
+    display: grid;
+    gap: clamp(16px, 2vw, 24px);
+    padding-bottom: 16px;
+    padding-right: clamp(12px, 1.5vw, 20px);
+    grid-template-columns: 1fr;
+  }
+
+  &__loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+  }
+}
+
+/* Responsive grid columns */
+@media (min-width: 600px) {
+  .tasks-page__grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 900px) {
+  .tasks-page__grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .tasks-page__grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* Small screens */
+@media (max-width: 599px) {
+  .tasks-page {
+    padding: 8px;
+
+    &__header {
+      margin-bottom: 12px;
+    }
+
+    &__search {
+      margin-bottom: 12px;
+    }
+
+    &__grid {
+      gap: 12px;
+    }
+  }
+}
