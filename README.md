@@ -42,7 +42,7 @@ Ensure RabbitMQ is running on `localhost:5672` (default configuration).
 rabbitmq-server
 ```
 
-**Verify:** RabbitMQ Management UI at http://localhost:15672 (guest/guest)
+**Verify:** RabbitMQ Management UI at http://localhost:5672
 
 ---
 
