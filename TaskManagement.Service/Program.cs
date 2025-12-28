@@ -13,7 +13,7 @@ builder.Services.AddWindowsService(options =>
 
 // Add DbContext
 builder.Services.AddDbContext<TaskManagementDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Configure service settings
 builder.Services.Configure<ServiceConfiguration>(builder.Configuration.GetSection("ServiceConfiguration"));

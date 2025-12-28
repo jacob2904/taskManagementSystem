@@ -33,7 +33,12 @@ export const useNotifications = () => {
     connectToHub();
 
     const unsubscribe = signalRService.onNotification((notification) => {
-      setNotifications(prev => [notification, ...prev]);
+      setNotifications(prev => {
+        // Remove any existing notification for this taskId to prevent duplicates
+        const filtered = prev.filter(n => n.taskId !== notification.taskId);
+        // Add the new notification at the beginning
+        return [notification, ...filtered];
+      });
       
       // Show browser notification if permission granted
       if (Notification.permission === 'granted') {

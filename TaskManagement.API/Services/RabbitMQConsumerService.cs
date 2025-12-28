@@ -1,9 +1,11 @@
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using System.Text;
 using System.Text.Json;
 using TaskManagement.API.Hubs;
+using TaskManagement.Data;
 
 namespace TaskManagement.API.Services;
 
@@ -15,6 +17,7 @@ public class RabbitMQConsumerService : BackgroundService
     private readonly ILogger<RabbitMQConsumerService> _logger;
     private readonly IHubContext<NotificationHub> _hubContext;
     private readonly IConfiguration _configuration;
+    private readonly IServiceProvider _serviceProvider;
     private IConnection? _connection;
     private IChannel? _channel;
     private const string QueueName = "TaskReminders";
@@ -22,11 +25,13 @@ public class RabbitMQConsumerService : BackgroundService
     public RabbitMQConsumerService(
         ILogger<RabbitMQConsumerService> logger,
         IHubContext<NotificationHub> hubContext,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IServiceProvider serviceProvider)
     {
         _logger = logger;
         _hubContext = hubContext;
         _configuration = configuration;
+        _serviceProvider = serviceProvider;
     }
 
     public override async Task StartAsync(CancellationToken cancellationToken)
@@ -91,6 +96,8 @@ public class RabbitMQConsumerService : BackgroundService
                             message.UserId,
                             message.DueDate.ToString("yyyy-MM-dd HH:mm:ss"));
 
+                        bool deliverySuccessful = false;
+
                         // Get user's connection IDs
                         var userConnections = NotificationHub.GetUserConnections(message.UserId.ToString());
                         
@@ -110,19 +117,52 @@ public class RabbitMQConsumerService : BackgroundService
                                 stoppingToken);
 
                             _logger.LogInformation(
-                                "Notification sent to user {UserId} ({ConnectionCount} connection(s))",
+                                "Notification sent via SignalR to user {UserId} ({ConnectionCount} connection(s)).",
                                 message.UserId,
                                 userConnections.Count);
+                            
+                            deliverySuccessful = true;
                         }
                         else
                         {
                             _logger.LogInformation(
                                 "User {UserId} is not connected. Notification not delivered.",
                                 message.UserId);
+                            deliverySuccessful = true; // Still mark as delivered to prevent retries
+                        }
+
+                        // Only mark task as notified and remove from queue after successful delivery
+                        if (deliverySuccessful)
+                        {
+                            using (var scope = _serviceProvider.CreateScope())
+                            {
+                                var context = scope.ServiceProvider.GetRequiredService<TaskManagementDbContext>();
+                                var task = await context.Tasks.FindAsync(message.TaskId);
+                                
+                                if (task != null)
+                                {
+                                    task.UpdatedAt = DateTime.UtcNow;
+                                    await context.SaveChangesAsync();
+                                    
+                                    _logger.LogInformation(
+                                        "Task ID {TaskId} marked as notified (UpdatedAt set).",
+                                        message.TaskId);
+                                }
+                            }
+
+                            // Acknowledge and permanently remove message from queue
+                            await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false);
+                            _logger.LogInformation(
+                                "Message for Task ID {TaskId} successfully removed from RabbitMQ queue",
+                                message.TaskId);
                         }
                     }
-
-                    await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false);
+                    else
+                    {
+                        // Invalid message - remove it from queue
+                        await _channel.BasicAckAsync(deliveryTag: ea.DeliveryTag, multiple: false);
+                        _logger.LogWarning("Received invalid/null message. Removed from queue.");
+                    }
                 }
                 catch (Exception ex)
                 {

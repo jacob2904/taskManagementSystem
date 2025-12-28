@@ -12,19 +12,6 @@ namespace TaskManagement.Data.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
-                name: "Tags",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    Name = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Tags", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "UserDetails",
                 columns: table => new
                 {
@@ -32,11 +19,34 @@ namespace TaskManagement.Data.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     FullName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     Telephone = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    Email = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false)
+                    Email = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    PasswordHash = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    LastLoginAt = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_UserDetails", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Tags",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    UserDetailsId = table.Column<int>(type: "int", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Tags", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Tags_UserDetails_UserDetailsId",
+                        column: x => x.UserDetailsId,
+                        principalTable: "UserDetails",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -49,6 +59,7 @@ namespace TaskManagement.Data.Migrations
                     Description = table.Column<string>(type: "nvarchar(2000)", maxLength: 2000, nullable: false),
                     DueDate = table.Column<DateTime>(type: "datetime2", nullable: false),
                     Priority = table.Column<int>(type: "int", nullable: false),
+                    IsComplete = table.Column<bool>(type: "bit", nullable: false),
                     UserDetailsId = table.Column<int>(type: "int", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true)
@@ -89,10 +100,15 @@ namespace TaskManagement.Data.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_Tags_Name",
+                name: "IX_Tags_Name_UserId",
                 table: "Tags",
-                column: "Name",
+                columns: new[] { "Name", "UserDetailsId" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Tags_UserDetailsId",
+                table: "Tags",
+                column: "UserDetailsId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Tasks_DueDate",

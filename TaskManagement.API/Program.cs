@@ -20,9 +20,9 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     });
 
-// Add DbContext with SQLite
+// Add DbContext with SQL Server
 builder.Services.AddDbContext<TaskManagementDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Add FluentValidation
 builder.Services.AddFluentValidationAutoValidation();
@@ -108,11 +108,11 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// Create database and apply migrations automatically
+// Apply migrations automatically
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<TaskManagementDbContext>();
-    db.Database.EnsureCreated();
+    db.Database.Migrate();
 }
 
 // Configure the HTTP request pipeline

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 import {
   IconButton,
   Badge,
@@ -9,24 +9,24 @@ import {
   Divider,
   Button,
   Chip,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Notifications as NotificationsIcon,
   NotificationsActive,
   Close as CloseIcon,
-} from '@mui/icons-material';
-import { useNotificationContext } from '../../contexts/NotificationContext';
-import { formatIsraelDateTime } from '../../utils/timezone';
+} from "@mui/icons-material";
+import { useNotificationContext } from "../../contexts/NotificationContext";
+import { formatIsraelDateTime } from "../../utils/timezone";
 
 export const NotificationBell = () => {
   const {
     notifications,
     isConnected,
     clearNotifications,
-    removeNotification,
+    removeNotificationByTaskId,
     requestNotificationPermission,
   } = useNotificationContext();
-  
+
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
 
@@ -55,11 +55,7 @@ export const NotificationBell = () => {
         aria-label="notifications"
       >
         <Badge badgeContent={notifications.length} color="error">
-          {isConnected ? (
-            <NotificationsActive />
-          ) : (
-            <NotificationsIcon />
-          )}
+          {isConnected ? <NotificationsActive /> : <NotificationsIcon />}
         </Badge>
       </IconButton>
 
@@ -74,7 +70,14 @@ export const NotificationBell = () => {
           },
         }}
       >
-        <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box
+          sx={{
+            p: 2,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
           <Typography variant="h6">
             Notifications
             {isConnected && (
@@ -92,15 +95,13 @@ export const NotificationBell = () => {
             </Button>
           )}
         </Box>
-        
+
         <Divider />
 
         {notifications.length === 0 ? (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-            <Typography color="text.secondary">
-              No notifications yet
-            </Typography>
-            {Notification.permission !== 'granted' && (
+          <Box sx={{ p: 3, textAlign: "center" }}>
+            <Typography color="text.secondary">No notifications yet</Typography>
+            {Notification.permission !== "granted" && (
               <Button
                 size="small"
                 onClick={handleEnableNotifications}
@@ -113,16 +114,22 @@ export const NotificationBell = () => {
         ) : (
           notifications.map((notification, index) => (
             <MenuItem
-              key={index}
+              key={notification.taskId}
               sx={{
-                flexDirection: 'column',
-                alignItems: 'flex-start',
+                flexDirection: "column",
+                alignItems: "flex-start",
                 py: 1.5,
                 borderBottom: index < notifications.length - 1 ? 1 : 0,
-                borderColor: 'divider',
+                borderColor: "divider",
               }}
             >
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}>
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  width: "100%",
+                }}
+              >
                 <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                   {notification.taskTitle}
                 </Typography>
@@ -130,16 +137,24 @@ export const NotificationBell = () => {
                   size="small"
                   onClick={(e) => {
                     e.stopPropagation();
-                    removeNotification(index);
+                    removeNotificationByTaskId(notification.taskId);
                   }}
                 >
                   <CloseIcon fontSize="small" />
                 </IconButton>
               </Box>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{ mt: 0.5 }}
+              >
                 {notification.message}
               </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mt: 0.5 }}
+              >
                 Due: {formatIsraelDateTime(notification.dueDate)}
               </Typography>
             </MenuItem>

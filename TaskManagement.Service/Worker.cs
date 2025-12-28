@@ -11,7 +11,6 @@ public class Worker : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ServiceConfiguration _config;
     private RabbitMQService? _rabbitMQService;
-    private Task? _consumerTask;
 
     public Worker(
         ILogger<Worker> logger,
@@ -33,15 +32,11 @@ public class Worker : BackgroundService
             _rabbitMQService = new RabbitMQService(
                 _serviceProvider.GetRequiredService<ILogger<RabbitMQService>>(),
                 _config.RabbitMQHost);
-            _logger.LogInformation("RabbitMQService created successfully");
-
-            _consumerTask = Task.Run(() => _rabbitMQService.StartConsumingAsync(cancellationToken), cancellationToken);
-
-            _logger.LogInformation("RabbitMQ consumer started successfully");
+            _logger.LogInformation("RabbitMQService created successfully (publisher only - API handles consumption)");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to start RabbitMQ consumer");
+            _logger.LogError(ex, "Failed to create RabbitMQ service");
         }
 
         await base.StartAsync(cancellationToken);
@@ -62,7 +57,7 @@ public class Worker : BackgroundService
                 _logger.LogError(ex, "Error checking overdue tasks");
             }
 
-            await Task.Delay(TimeSpan.FromMinutes(_config.CheckIntervalMinutes), stoppingToken);
+            await Task.Delay(TimeSpan.FromSeconds(_config.CheckIntervalSeconds), stoppingToken);
         }
     }
 
@@ -74,17 +69,21 @@ public class Worker : BackgroundService
         try
         {
             var now = DateTime.UtcNow;
-            _logger.LogInformation("Checking for overdue tasks at: {CurrentTime}", now.ToString("yyyy-MM-dd HH:mm:ss"));
-            
-            var checkThreshold = now.AddMinutes(-_config.CheckIntervalMinutes);
+            _logger.LogInformation("Checking for due/overdue tasks at: {CurrentTime}", now.ToString("yyyy-MM-dd HH:mm:ss"));
 
+            // Get tasks that are due or overdue and haven't been notified yet
+            // A task is eligible for notification if:
+            // 1. Not complete AND due date has passed (DueDate <= now)
+            // 2. UpdatedAt is null (never notified) OR UpdatedAt is before DueDate (was updated before becoming due)
+            // This ensures each task only gets ONE notification when it becomes due/overdue
             var overdueTasks = await context.Tasks
                 .Where(t => !t.IsComplete && t.DueDate <= now)
-                .Where(t => t.UpdatedAt == null || t.UpdatedAt < checkThreshold)
+                .Where(t => t.UpdatedAt == null || t.UpdatedAt < t.DueDate)
+                .OrderBy(t => t.DueDate)
                 .Select(t => new { t.Id, t.Title, t.DueDate, t.UserDetailsId, t.UpdatedAt })
                 .ToListAsync();
 
-            _logger.LogInformation("Query completed. Found {Count} overdue tasks matching criteria", overdueTasks.Count);
+            _logger.LogInformation("Query completed. Found {Count} due/overdue tasks that need notification", overdueTasks.Count);
             
             foreach (var task in overdueTasks)
             {
@@ -98,15 +97,20 @@ public class Worker : BackgroundService
 
             if (overdueTasks.Any())
             {
-                _logger.LogInformation("Processing {Count} overdue tasks for notification", overdueTasks.Count);
+                _logger.LogInformation("Publishing {Count} task notification(s) to RabbitMQ", overdueTasks.Count);
 
-                // Get the task IDs to update
-                var taskIds = overdueTasks.Select(t => t.Id).ToList();
-
+                // Publish each task to RabbitMQ individually
+                // Each task will be sent to SignalR and marked as notified by the API service
                 foreach (var task in overdueTasks)
                 {
                     if (_rabbitMQService != null)
                     {
+                        _logger.LogInformation(
+                            "Publishing notification for Task ID {TaskId}: '{Title}' (Due: {DueDate})",
+                            task.Id,
+                            task.Title,
+                            task.DueDate.ToString("yyyy-MM-dd HH:mm:ss"));
+                        
                         await _rabbitMQService.PublishTaskReminderAsync(
                             task.Id,
                             task.UserDetailsId,
@@ -114,22 +118,6 @@ public class Worker : BackgroundService
                             task.DueDate);
                     }
                 }
-
-                // Update the tasks in the database
-                var tasksToUpdate = await context.Tasks
-                    .Where(t => taskIds.Contains(t.Id))
-                    .ToListAsync();
-
-                foreach (var task in tasksToUpdate)
-                {
-                    task.UpdatedAt = DateTime.UtcNow;
-                }
-
-                await context.SaveChangesAsync();
-            }
-            else
-            {
-                _logger.LogInformation("No overdue tasks found at: {time}", DateTimeOffset.Now);
             }
         }
         catch (Exception ex)
@@ -145,11 +133,6 @@ public class Worker : BackgroundService
 
         _rabbitMQService?.Dispose();
 
-        if (_consumerTask != null)
-        {
-            await _consumerTask;
-        }
-
         await base.StopAsync(cancellationToken);
     }
 }
@@ -157,5 +140,5 @@ public class Worker : BackgroundService
 public class ServiceConfiguration
 {
     public string RabbitMQHost { get; set; } = "localhost";
-    public int CheckIntervalMinutes { get; set; } = 5;
+    public int CheckIntervalSeconds { get; set; } = 300;
 }
